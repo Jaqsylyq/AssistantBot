@@ -1,5 +1,5 @@
 from openai import OpenAI
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, WebSocket
 from typing import Annotated
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -22,8 +22,34 @@ async def chat_page(request: Request):
 
 chat_log = [{
     'role': 'system',
-    'content': 'You are a wise friend who can give constructed advice'
+    'content': 'You are a personal assistant who is very intelligent and helpful'
 }]
+
+
+@app.websocket("/ws")
+async def chat(websocket: WebSocket):
+
+    await websocket.accept()
+
+    while True:
+        user_input = await websocket.receive_text()
+        chat_log.append({"role": "user", "content": user_input})
+        chat_responses.append(user_input)
+
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=chat_log,
+                temperature=0.75
+            )
+
+            bot_response = response.choices[0].message.content
+
+            await websocket.send_text(bot_response)
+
+        except Exception as e:
+            await websocket.send_text(f'Error {str(e)}')
+            break
 
 
 @app.post("/", response_class=HTMLResponse)
@@ -55,7 +81,7 @@ async def create_image(request: Request, user_input: Annotated[str, Form()]):
     response = openai.images.generate(
         prompt=user_input,
         n=1,
-        size="1024x1024"
+        size="512x512"
     )
 
     image_url = response.data[0].url
