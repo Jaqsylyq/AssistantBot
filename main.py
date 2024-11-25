@@ -40,12 +40,17 @@ async def chat(websocket: WebSocket):
             response = openai.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=chat_log,
-                temperature=0.75
+                temperature=0.75,
+                stream=True
             )
 
-            bot_response = response.choices[0].message.content
+            ai_response = ''
 
-            await websocket.send_text(bot_response)
+            for chunk in response:
+                if chunk.choices[0].delta.content is not None:
+                    ai_response += chunk.choices[0].delta.content
+                    await websocket.send_text(chunk.choices[0].delta.content)
+            chat_responses.append(ai_response)
 
         except Exception as e:
             await websocket.send_text(f'Error {str(e)}')
@@ -81,7 +86,7 @@ async def create_image(request: Request, user_input: Annotated[str, Form()]):
     response = openai.images.generate(
         prompt=user_input,
         n=1,
-        size="512x512"
+        size="256x256"
     )
 
     image_url = response.data[0].url
